@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Editor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            margin-top: 10px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>JSON Editor</h1>
+    <button id="fetch-btn">Fetch JSON</button>
+    <textarea id="json-display" readonly></textarea>
+    <button id="edit-btn">Edit JSON</button>
+    <textarea id="json-editor" style="display:none;"></textarea>
+    <button id="save-btn" style="display:none;">Save JSON</button>
+    <script src="app.js"></script>
+</body>
+</html>
