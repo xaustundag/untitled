@@ -3,6 +3,21 @@ import { Base64 } from "js-base64";
 
 export async function handler(event, context) {
     try {
+        console.log("Environment Variables:");
+        console.log("GITHUB_TOKEN:", process.env.GITHUB_TOKEN);
+        console.log("REPO_OWNER:", process.env.REPO_OWNER);
+        console.log("REPO_NAME:", process.env.REPO_NAME);
+        console.log("FILE_PATH:", process.env.FILE_PATH);
+
+        const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+        const REPO_OWNER = process.env.REPO_OWNER;
+        const REPO_NAME = process.env.REPO_NAME;
+        const FILE_PATH = process.env.FILE_PATH;
+
+        if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME || !FILE_PATH) {
+            throw new Error('Missing required environment variables');
+        }
+
         if (!event.body) {
             throw new Error('No request body');
         }
@@ -13,15 +28,7 @@ export async function handler(event, context) {
             throw new Error('No data found in request body');
         }
 
-        const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-        const REPO_OWNER = process.env.REPO_OWNER;
-        const REPO_NAME = process.env.REPO_NAME;
-        const FILE_PATH = process.env.FILE_PATH;
         const COMMIT_MESSAGE = 'Update catalog.json';
-
-        if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME || !FILE_PATH) {
-            throw new Error('Missing required environment variables');
-        }
 
         const octokit = new Octokit({
             auth: GITHUB_TOKEN
@@ -53,7 +60,6 @@ export async function handler(event, context) {
                     path: FILE_PATH,
                     message: COMMIT_MESSAGE,
                     content: Base64.encode(data),
-                    sha: sha || undefined, // Only include sha if it exists
                 });
                 return response;
             } catch (error) {
