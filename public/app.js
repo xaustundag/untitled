@@ -28,7 +28,7 @@ function saveJSON() {
         document.getElementById('json-editor').style.display = 'none';
         document.getElementById('save-btn').style.display = 'none';
 
-        fetch('/.netlify/functions/deploy', {
+        fetch('https://main--illustrious-valkyrie-caef79.netlify.app/.netlify/functions/deploy', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
