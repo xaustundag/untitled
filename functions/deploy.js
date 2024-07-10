@@ -19,6 +19,10 @@ export async function handler(event, context) {
         const FILE_PATH = process.env.FILE_PATH;
         const COMMIT_MESSAGE = 'Update catalog.json';
 
+        if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME || !FILE_PATH) {
+            throw new Error('Missing required environment variables');
+        }
+
         const octokit = new Octokit({
             auth: GITHUB_TOKEN
         });
@@ -32,8 +36,12 @@ export async function handler(event, context) {
                 });
                 return data.sha;
             } catch (error) {
+                if (error.status === 404) {
+                    console.warn('File not found, creating new file');
+                    return null;
+                }
                 console.error('Error getting file SHA:', error);
-                return null;
+                throw error;
             }
         };
 
@@ -45,7 +53,7 @@ export async function handler(event, context) {
                     path: FILE_PATH,
                     message: COMMIT_MESSAGE,
                     content: Base64.encode(data),
-                    sha
+                    sha: sha || undefined, // Only include sha if it exists
                 });
                 return response;
             } catch (error) {
@@ -91,4 +99,5 @@ export async function handler(event, context) {
         };
     }
 }
+
 
