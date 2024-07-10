@@ -12,7 +12,7 @@ export async function handler(event, context) {
         const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
         const REPO_OWNER = process.env.REPO_OWNER;
         const REPO_NAME = process.env.REPO_NAME;
-        const FILE_PATH = process.env.FILE_PATH;
+        const FILE_PATH = "catalog.json";
 
         if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME || !FILE_PATH) {
             throw new Error('Missing required environment variables');
