@@ -59,12 +59,22 @@ export async function handler(event, context) {
             await updateFile(sha);
             return {
                 statusCode: 200,
+                headers: {
+                    'Access-Control-Allow-Origin': '*', // Allow any origin
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                },
                 body: JSON.stringify({ message: 'Changes committed and pushed successfully!' }),
             };
         } catch (error) {
             console.error('Error committing changes:', error);
             return {
                 statusCode: 500,
+                headers: {
+                    'Access-Control-Allow-Origin': '*', // Allow any origin
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                },
                 body: JSON.stringify({ message: 'Error committing changes.' }),
             };
         }
@@ -72,7 +82,13 @@ export async function handler(event, context) {
         console.error('Error in handler:', error);
         return {
             statusCode: 400,
+            headers: {
+                'Access-Control-Allow-Origin': '*', // Allow any origin
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            },
             body: JSON.stringify({ message: error.message }),
         };
     }
 }
+
