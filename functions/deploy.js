@@ -1,109 +1,63 @@
-import { Octokit } from "@octokit/rest";
-import { Base64 } from "js-base64";
+const fetch = require('node-fetch');
+const { Octokit } = require("@octokit/core");
 
-export async function handler(event, context) {
-    try {
-        console.log("Environment Variables:");
-        console.log("GITHUB_TOKEN:", process.env.GITHUB_TOKEN);
-        console.log("REPO_OWNER:", process.env.REPO_OWNER);
-        console.log("REPO_NAME:", process.env.REPO_NAME);
-        console.log("FILE_PATH:", process.env.FILE_PATH);
-
-        const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-        const REPO_OWNER = process.env.REPO_OWNER;
-        const REPO_NAME = process.env.REPO_NAME;
-        const FILE_PATH = "catalog.json";
-
-        if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME || !FILE_PATH) {
-            throw new Error('Missing required environment variables');
-        }
-
-        if (!event.body) {
-            throw new Error('No request body');
-        }
-
-        const { data } = JSON.parse(event.body);
-
-        if (!data) {
-            throw new Error('No data found in request body');
-        }
-
-        const COMMIT_MESSAGE = 'Update catalog.json';
-
-        const octokit = new Octokit({
-            auth: GITHUB_TOKEN
-        });
-
-        const getFileSha = async (path) => {
-            try {
-                const { data } = await octokit.repos.getContent({
-                    owner: REPO_OWNER,
-                    repo: REPO_NAME,
-                    path
-                });
-                return data.sha;
-            } catch (error) {
-                if (error.status === 404) {
-                    console.warn('File not found, creating new file');
-                    return null;
-                }
-                console.error('Error getting file SHA:', error);
-                throw error;
-            }
-        };
-
-        const updateFile = async (sha) => {
-            try {
-                const response = await octokit.repos.createOrUpdateFileContents({
-                    owner: REPO_OWNER,
-                    repo: REPO_NAME,
-                    path: FILE_PATH,
-                    message: COMMIT_MESSAGE,
-                    content: Base64.encode(data),
-                });
-                return response;
-            } catch (error) {
-                console.error('Error updating file:', error);
-                throw error;
-            }
-        };
-
-        try {
-            const sha = await getFileSha(FILE_PATH);
-            await updateFile(sha);
-            return {
-                statusCode: 200,
-                headers: {
-                    'Access-Control-Allow-Origin': '*', // Allow any origin
-                    'Access-Control-Allow-Headers': 'Content-Type',
-                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                },
-                body: JSON.stringify({ message: 'Changes committed and pushed successfully!' }),
-            };
-        } catch (error) {
-            console.error('Error committing changes:', error);
-            return {
-                statusCode: 500,
-                headers: {
-                    'Access-Control-Allow-Origin': '*', // Allow any origin
-                    'Access-Control-Allow-Headers': 'Content-Type',
-                    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                },
-                body: JSON.stringify({ message: 'Error committing changes.' }),
-            };
-        }
-    } catch (error) {
-        console.error('Error in handler:', error);
+exports.handler = async function(event, context) {
+    if (event.httpMethod !== 'POST') {
         return {
-            statusCode: 400,
-            headers: {
-                'Access-Control-Allow-Origin': '*', // Allow any origin
-                'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            },
-            body: JSON.stringify({ message: error.message }),
+            statusCode: 405,
+            body: 'Method Not Allowed',
         };
     }
-}
+
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const REPO_OWNER = process.env.REPO_OWNER;
+    const REPO_NAME = process.env.REPO_NAME;
+    const FILE_PATH = 'catalog.json';
+    const octokit = new Octokit({ auth: GITHUB_TOKEN });
+
+    let newContent;
+    try {
+        const body = JSON.parse(event.body);
+        newContent = body.data;
+        JSON.parse(newContent); // Validate JSON format
+    } catch (error) {
+        return {
+            statusCode: 400,
+            body: 'Invalid JSON format',
+        };
+    }
+
+    try {
+        // Get the SHA of the file to update it
+        const { data: fileData } = await octokit.request('GET /repos/{owner}/{repo}/contents/{path}', {
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH,
+        });
+
+        const updatedContent = Buffer.from(newContent).toString('base64');
+
+        // Update the file
+        await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH,
+            message: 'Update catalog.json via Netlify function',
+            content: updatedContent,
+            sha: fileData.sha,
+        });
+
+        return {
+            statusCode: 200,
+            body: 'Changes committed and pushed successfully!',
+        };
+    } catch (error) {
+        console.error('GitHub API error:', error);
+        return {
+            statusCode: 500,
+            body: `Failed to push changes: ${error.message}`,
+        };
+    }
+};
 
 
