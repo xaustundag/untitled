@@ -20,31 +20,33 @@ function editJSON() {
 }
 
 function saveJSON() {
-    const editedJSON = document.getElementById('json-editor').value;
-    try {
-        JSON.parse(editedJSON); // Validate JSON
-        document.getElementById('json-display').value = editedJSON;
-        document.getElementById('json-display').style.display = 'block';
-        document.getElementById('json-editor').style.display = 'none';
-        document.getElementById('save-btn').style.display = 'none';
+  const editedJSON = document.getElementById('json-editor').value;
 
-        fetch('https://main--illustrious-valkyrie-caef79.netlify.app/.netlify/functions/deploy', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ data: editedJSON }),
-        }).then(response => {
-            if (response.ok) {
-                alert('Changes committed and pushed successfully!');
-            } else {
-                response.text().then(text => alert(`Failed to push changes: ${text}`));
-            }
-        }).catch(error => {
-            console.error('Fetch error:', error);
-            alert('Failed to push changes.');
-        });
-    } catch (error) {
-        alert('Invalid JSON format.');
-    }
+  try {
+    JSON.parse(editedJSON); // Validate JSON
+
+    fetch('https://main--illustrious-valkyrie-caef79.netlify.app/.netlify/functions/deploy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: editedJSON }),
+    })
+    .then(response => {
+      if (response.ok) {
+        return response.json();
+      }
+      throw new Error('Network response was not ok');
+    })
+    .then(data => {
+      alert(`Changes committed and pushed successfully! Commit SHA: ${data.commitSha}`);
+    })
+    .catch(error => {
+      console.error('Fetch error:', error);
+      alert('Failed to push changes: ' + error.message);
+    });
+
+  } catch (error) {
+    alert('Invalid JSON format.');
+  }
 }
