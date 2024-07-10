@@ -1,3 +1,5 @@
+document.getElementById('fetch-btn').addEventListener('click', fetchJSON);
+document.getElementById('edit-btn').addEventListener('click', editJSON);
 document.getElementById('save-btn').addEventListener('click', saveJSON);
 
 function saveJSON() {
