@@ -11,7 +11,7 @@ const logger = winston.createLogger({
   ],
 });
 
-const COOLDOWN_PERIOD = 6000; // 1 minute in milliseconds
+const COOLDOWN_PERIOD = 60000; // 1 minute in milliseconds
 let lastDeployTime = 0;
 
 export async function handler(event, context) {
@@ -52,46 +52,75 @@ export async function handler(event, context) {
   const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
   try {
-    if (!event.body) {
-      throw new Error('No request body');
-    }
     const { data: newContent } = JSON.parse(event.body);
     if (!newContent) {
       throw new Error('No data found in request body');
     }
+
     logger.info("Received data:", { preview: newContent.substring(0, 100) });
 
-    const { data: existingFile } = await octokit.repos.getContent({
+    // Step 1: Get SHA of base branch
+    const baseBranch = await octokit.git.getRef({
       owner: REPO_OWNER,
       repo: REPO_NAME,
-      path: FILE_PATH,
-      ref: BRANCH
+      ref: `heads/${BRANCH}`,
+    });
+    const baseTreeSha = baseBranch.data.object.sha;
+
+    // Step 2: Create Git file blob
+    const blob = await octokit.git.createBlob({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      content: Buffer.from(newContent).toString('base64'),
+      encoding: 'base64',
     });
 
-    const existingContent = Buffer.from(existingFile.content, 'base64').toString('utf-8');
-    if (existingContent === newContent) {
-      logger.info('No changes detected. Skipping update.');
-      return { statusCode: 200, headers, body: JSON.stringify({ message: 'No changes detected' }) };
-    }
-
-    const { data: newCommitData } = await octokit.repos.createOrUpdateFileContents({
+    // Step 3: Create Git tree
+    const tree = await octokit.git.createTree({
       owner: REPO_OWNER,
       repo: REPO_NAME,
-      path: FILE_PATH,
+      base_tree: baseTreeSha,
+      tree: [{
+        path: FILE_PATH,
+        mode: '100644', // file mode
+        type: 'blob',
+        sha: blob.data.sha,
+      }],
+    });
+
+    // Step 4: Get parent SHA
+    const parentCommit = await octokit.repos.getCommit({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      ref: BRANCH,
+    });
+    const parentSha = parentCommit.data.sha;
+
+    // Step 5: Create Git commit
+    const commit = await octokit.git.createCommit({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
       message: `Update ${FILE_PATH}`,
-      content: Buffer.from(newContent).toString('base64'),
-      sha: existingFile.sha,
-      branch: BRANCH,
+      tree: tree.data.sha,
+      parents: [parentSha],
+    });
+
+    // Step 6: Update Git branch ref
+    await octokit.git.updateRef({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      ref: `heads/${BRANCH}`,
+      sha: commit.data.sha,
     });
 
     lastDeployTime = Date.now();
-    logger.info(`Deployment successful. Commit SHA: ${newCommitData.sha}`);
+    logger.info(`Deployment successful. Commit SHA: ${commit.data.sha}`);
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         message: 'Changes committed and pushed successfully!',
-        commitSha: newCommitData.sha
+        commitSha: commit.data.sha
       }),
     };
   } catch (error) {
@@ -103,5 +132,4 @@ export async function handler(event, context) {
     };
   }
 }
-
 
