@@ -11,7 +11,7 @@ const logger = winston.createLogger({
   ],
 });
 
-const COOLDOWN_PERIOD = 60000; // 1 minute in milliseconds
+const COOLDOWN_PERIOD = 6000; // 1 minute in milliseconds
 let lastDeployTime = 0;
 
 export async function handler(event, context) {
