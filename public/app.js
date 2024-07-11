@@ -23,7 +23,7 @@ function saveJSON() {
   const editedJSON = document.getElementById('json-editor').value;
   try {
     JSON.parse(editedJSON); // Validate JSON
-    fetch('https://nimble-lebkuchen-13adad.netlify.app/.netlify/functions/deploy', {
+    fetch('https://illustrious-valkyrie-caef79.netlify.app/.netlify/functions/deploy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
