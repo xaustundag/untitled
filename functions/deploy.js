@@ -1,31 +1,40 @@
 import { Octokit } from "@octokit/rest";
+import winston from "winston";
 
-// Add a simple rate limiting mechanism
+// Set up winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
 const COOLDOWN_PERIOD = 60000; // 1 minute in milliseconds
 let lastDeployTime = 0;
 
 export async function handler(event, context) {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  // Handle OPTIONS request for CORS preflight
   if (event.httpMethod === 'OPTIONS') {
+    logger.info('Received OPTIONS request for CORS preflight');
     return { statusCode: 204, headers, body: '' };
   }
 
-  // Ensure the request is a POST
   if (event.httpMethod !== 'POST') {
+    logger.warn('Received non-POST request');
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
-  // Implement cooldown period
   const now = Date.now();
   if (now - lastDeployTime < COOLDOWN_PERIOD) {
-    console.log(`Deployment attempted too soon. Please wait ${(COOLDOWN_PERIOD - (now - lastDeployTime)) / 1000} seconds.`);
+    const waitTime = (COOLDOWN_PERIOD - (now - lastDeployTime)) / 1000;
+    logger.warn(`Deployment attempted too soon. Please wait ${waitTime} seconds.`);
     return { statusCode: 429, headers, body: JSON.stringify({ error: 'Too Many Requests. Please wait before trying again.' }) };
   }
 
@@ -36,7 +45,7 @@ export async function handler(event, context) {
   const BRANCH = 'main';
 
   if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME) {
-    console.log('Missing required environment variables');
+    logger.error('Missing required environment variables');
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Missing required environment variables' }) };
   }
 
@@ -50,9 +59,8 @@ export async function handler(event, context) {
     if (!newContent) {
       throw new Error('No data found in request body');
     }
-    console.log("Received data:", newContent.substring(0, 100) + "...");
+    logger.info("Received data:", { preview: newContent.substring(0, 100) });
 
-    // Implement change detection
     const { data: existingFile } = await octokit.repos.getContent({
       owner: REPO_OWNER,
       repo: REPO_NAME,
@@ -62,15 +70,22 @@ export async function handler(event, context) {
 
     const existingContent = Buffer.from(existingFile.content, 'base64').toString('utf-8');
     if (existingContent === newContent) {
-      console.log('No changes detected. Skipping update.');
+      logger.info('No changes detected. Skipping update.');
       return { statusCode: 200, headers, body: JSON.stringify({ message: 'No changes detected' }) };
     }
 
-    // Existing GitHub API operations...
-    // (Steps 1-6 remain the same)
+    const { data: newCommitData } = await octokit.repos.createOrUpdateFileContents({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      path: FILE_PATH,
+      message: `Update ${FILE_PATH}`,
+      content: Buffer.from(newContent).toString('base64'),
+      sha: existingFile.sha,
+      branch: BRANCH,
+    });
 
     lastDeployTime = Date.now();
-    console.log(`Deployment successful. Commit SHA: ${newCommitData.sha}`);
+    logger.info(`Deployment successful. Commit SHA: ${newCommitData.sha}`);
     return {
       statusCode: 200,
       headers,
@@ -80,7 +95,7 @@ export async function handler(event, context) {
       }),
     };
   } catch (error) {
-    console.error('Error in handler:', error);
+    logger.error('Error in handler:', error);
     return {
       statusCode: 500,
       headers,

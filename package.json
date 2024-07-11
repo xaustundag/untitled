@@ -5,6 +5,7 @@
   "license": "MIT",
   "dependencies": {
     "@octokit/rest": "^19.0.7",
-    "js-base64": "^3.7.5"
+    "js-base64": "^3.7.5",
+    "winston": "^3.13.1"
   }
 }
