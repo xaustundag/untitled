@@ -3,7 +3,7 @@ document.getElementById('edit-btn').addEventListener('click', editJSON);
 document.getElementById('save-btn').addEventListener('click', saveJSON);
 
 function fetchJSON() {
-    fetch('https://wonderful-maamoul-33d63c.netlify.app/catalog.json')
+    fetch('https://nimble-lebkuchen-13adad.netlify.app/catalog.json')
         .then(response => response.json())
         .then(data => {
             document.getElementById('json-display').value = JSON.stringify(data, null, 4);
