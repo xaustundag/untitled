@@ -21,11 +21,9 @@ function editJSON() {
 
 function saveJSON() {
   const editedJSON = document.getElementById('json-editor').value;
-
   try {
     JSON.parse(editedJSON); // Validate JSON
-
-    fetch('https://main--illustrious-valkyrie-caef79.netlify.app/.netlify/functions/deploy', {
+    fetch('https://nimble-lebkuchen-13adad.netlify.app/catalog.json', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -36,16 +34,22 @@ function saveJSON() {
       if (response.ok) {
         return response.json();
       }
+      if (response.status === 429) {
+        throw new Error('Too many requests. Please wait before trying again.');
+      }
       throw new Error('Network response was not ok');
     })
     .then(data => {
-      alert(`Changes committed and pushed successfully! Commit SHA: ${data.commitSha}`);
+      if (data.message === 'No changes detected') {
+        alert('No changes detected. Update skipped.');
+      } else {
+        alert(`Changes committed and pushed successfully! Commit SHA: ${data.commitSha}`);
+      }
     })
     .catch(error => {
       console.error('Fetch error:', error);
       alert('Failed to push changes: ' + error.message);
     });
-
   } catch (error) {
     alert('Invalid JSON format.');
   }

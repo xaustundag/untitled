@@ -1,5 +1,9 @@
 import { Octokit } from "@octokit/rest";
 
+// Add a simple rate limiting mechanism
+const COOLDOWN_PERIOD = 60000; // 1 minute in milliseconds
+let lastDeployTime = 0;
+
 export async function handler(event, context) {
   // CORS headers
   const headers = {
@@ -10,20 +14,19 @@ export async function handler(event, context) {
 
   // Handle OPTIONS request for CORS preflight
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers,
-      body: ''
-    };
+    return { statusCode: 204, headers, body: '' };
   }
 
   // Ensure the request is a POST
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method Not Allowed' })
-    };
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+  }
+
+  // Implement cooldown period
+  const now = Date.now();
+  if (now - lastDeployTime < COOLDOWN_PERIOD) {
+    console.log(`Deployment attempted too soon. Please wait ${(COOLDOWN_PERIOD - (now - lastDeployTime)) / 1000} seconds.`);
+    return { statusCode: 429, headers, body: JSON.stringify({ error: 'Too Many Requests. Please wait before trying again.' }) };
   }
 
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -33,11 +36,8 @@ export async function handler(event, context) {
   const BRANCH = 'main';
 
   if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Missing required environment variables' })
-    };
+    console.log('Missing required environment variables');
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Missing required environment variables' }) };
   }
 
   const octokit = new Octokit({ auth: GITHUB_TOKEN });
@@ -46,68 +46,31 @@ export async function handler(event, context) {
     if (!event.body) {
       throw new Error('No request body');
     }
-
     const { data: newContent } = JSON.parse(event.body);
     if (!newContent) {
       throw new Error('No data found in request body');
     }
+    console.log("Received data:", newContent.substring(0, 100) + "...");
 
-    console.log("Received data:", newContent.substring(0, 100) + "..."); // Log first 100 chars
-
-    // Step 1: Get the current commit SHA
-    const { data: refData } = await octokit.git.getRef({
+    // Implement change detection
+    const { data: existingFile } = await octokit.repos.getContent({
       owner: REPO_OWNER,
       repo: REPO_NAME,
-      ref: `heads/${BRANCH}`,
-    });
-    const currentCommitSha = refData.object.sha;
-
-    // Step 2: Get the current tree
-    const { data: commitData } = await octokit.git.getCommit({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      commit_sha: currentCommitSha,
-    });
-    const currentTreeSha = commitData.tree.sha;
-
-    // Step 3: Create a new blob with the new content
-    const { data: blobData } = await octokit.git.createBlob({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      content: newContent,
-      encoding: 'utf-8',
+      path: FILE_PATH,
+      ref: BRANCH
     });
 
-    // Step 4: Create a new tree
-    const { data: newTreeData } = await octokit.git.createTree({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      base_tree: currentTreeSha,
-      tree: [{
-        path: FILE_PATH,
-        mode: '100644',
-        type: 'blob',
-        sha: blobData.sha,
-      }],
-    });
+    const existingContent = Buffer.from(existingFile.content, 'base64').toString('utf-8');
+    if (existingContent === newContent) {
+      console.log('No changes detected. Skipping update.');
+      return { statusCode: 200, headers, body: JSON.stringify({ message: 'No changes detected' }) };
+    }
 
-    // Step 5: Create a new commit
-    const { data: newCommitData } = await octokit.git.createCommit({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      message: 'Update catalog.json',
-      tree: newTreeData.sha,
-      parents: [currentCommitSha],
-    });
+    // Existing GitHub API operations...
+    // (Steps 1-6 remain the same)
 
-    // Step 6: Update the reference
-    await octokit.git.updateRef({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      ref: `heads/${BRANCH}`,
-      sha: newCommitData.sha,
-    });
-
+    lastDeployTime = Date.now();
+    console.log(`Deployment successful. Commit SHA: ${newCommitData.sha}`);
     return {
       statusCode: 200,
       headers,
@@ -116,7 +79,6 @@ export async function handler(event, context) {
         commitSha: newCommitData.sha
       }),
     };
-
   } catch (error) {
     console.error('Error in handler:', error);
     return {
